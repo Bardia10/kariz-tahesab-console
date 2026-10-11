@@ -26,9 +26,12 @@ class DocumentBrowserTests(unittest.IsolatedAsyncioTestCase):
         service.sessions.clear()
         service.cache.clear()
         service.document_snapshot_locks.clear()
+        service.login_failures.clear()
         self.source = AsyncMock(return_value=source_rows())
         self.customer = AsyncMock(side_effect=lambda token, database, code: [{"Code": code, "Name": f"مشتری {code}"}])
-        self.patches = [patch.object(tahesab, "documents_all", self.source),
+        self.patches = [patch.object(service, "CONSOLE_PASSWORD", "test-password"),
+                        patch.object(service, "TAHESAB_TOKEN", "not-a-real-token"),
+                        patch.object(tahesab, "documents_all", self.source),
                         patch.object(tahesab, "customer_by_code", self.customer),
                         patch.object(tahesab, "verify_database", AsyncMock(return_value=[{"Name": "ریال"}]))]
         for source_patch in self.patches:
@@ -36,7 +39,7 @@ class DocumentBrowserTests(unittest.IsolatedAsyncioTestCase):
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app),
                                        base_url="http://127.0.0.1:47183",
                                        headers={"Origin": "http://127.0.0.1:47183"})
-        response = await self.client.post("/api/connect", json={"token": "not-a-real-token"})
+        response = await self.client.post("/api/connect", json={"password": "test-password"})
         self.assertEqual(response.status_code, 200)
 
     async def asyncTearDown(self):

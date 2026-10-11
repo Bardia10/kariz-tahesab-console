@@ -6,6 +6,7 @@ Standalone Persian RTL client for the Tahesab test accounting system. It has its
 
 - Connects only to `https://api-test.tahesab.ir`. The database is configured server-side and defaults to `TahesabDB`.
 - Lists customers in a bounded code range, supports search and 25-row pages, and shows source details.
+- Edits customer full name, source group, contact number, address, and national ID from the customer-detail “ویرایش اطلاعات” button. The customer code stays fixed. Birth date, city, and source trade/category fields are preserved from a fresh source read; birth date is read-only in the form. Updates require confirmation, are journaled, and are verified by reading the same customer back. Uncertain updates can be checked from the operations page and are never automatically resent.
 - Opens the documents page immediately after connecting and automatically shows documents across all customers, newest first. Search, document-type buttons, pagination, and a details button work without selecting a customer or entering code ranges. Optional filters are collapsed.
 - Payment, delivery, trade, and other-document pages use the same all-customer browser, automatically scoped to that document family. Search, optional filters, and pagination work consistently. Creation forms open from each page's add button in a modal; confirmed submissions refresh the listing. Customer-specific history is available through the optional customer-code filter.
 - Uses the verified global `DoListAsnad` read: `[0, "", "", "", "", 0]`. During contract verification this returned 4,054 rows; counts 25 and 50 returned recent subsets across multiple customers, and samples matched their customer histories.
@@ -50,7 +51,8 @@ Open `http://127.0.0.1:53927`. Vite proxies `/api` to FastAPI. The dev server is
 
 ## Connection and local state
 
-- Enter the test-server token on the connection page. It is kept in server memory only, behind an `HttpOnly`, `SameSite=Strict` cookie; a process restart requires reconnecting.
+- Enter the console password on the login page. The configured local password is `kariz`. Set `CONSOLE_PASSWORD` and `TAHESAB_TOKEN` in the backend's ignored `.env`; never put the bearer token in frontend code. The test-server address stays fixed in the adapter, and `TAHESAB_DATABASE` selects the test database.
+- Login verifies source database access with the server's configured bearer token and creates an `HttpOnly`, `SameSite=Strict` session cookie. A process restart requires logging in again. Incorrect-password attempts are temporarily limited after six failures.
 - The local SQLite operation journal is `.local/operations.sqlite3` and is not committed. It stores submitted form data, factor codes, source results, and statuses so pending results can be recovered after restart.
 - Every API route requires a session. Write requests enforce same-origin checks and a 32 KiB request limit. Errors do not include the token.
 - Reads are cached per session for 30 seconds. Customer ranges are fetched in chunks of at most 250 codes and limited to 2,500 codes per request.

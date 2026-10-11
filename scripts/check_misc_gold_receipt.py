@@ -23,7 +23,7 @@ async def main():
     date = jdatetime.date.today().strftime("%Y/%m/%d")
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
                                  base_url="http://testserver") as client:
-        connected = await client.post("/api/connect", headers={"Origin": "http://testserver"}, json={"token": token})
+        connected = await client.post("/api/connect", headers={"Origin": "http://testserver"}, json={"password": dotenv_values(ROOT / ".env").get("CONSOLE_PASSWORD", "")})
         if connected.status_code != 200:
             print(json.dumps({"status": "not_run", "connect_http": connected.status_code}))
             return

@@ -30,6 +30,7 @@ OPERATIONS = {
 
 WRITE_OPERATIONS = {
     "customer": ("/DoNewMoshtari", "DoNewMoshtari"),
+    "customer_edit": ("/DoEditMoshtari", "DoEditMoshtari"),
     "cash": ("/DoNewSanadVKHVaghNaghd", "DoNewSanadVKHVaghNaghd"),
     "gold_receipt": ("/DoNewSanadVKHGOLD", "DoNewSanadVKHGOLD"),
     "physical_coin": ("/DoNewSanadVKHSEKEH", "DoNewSanadVKHSEKEH"),
@@ -39,6 +40,39 @@ WRITE_OPERATIONS = {
     "trade_bar": ("/DoNewSanadBuySaleShemsh", "DoNewSanadBuySaleShemsh"),
     "bank": ("/DoNewSanadVKHBank", "DoNewSanadVKHBank"),
 }
+
+
+def edit_customer_params(name: str, group_name: str, mobile: str, address: str,
+                         national_id: str, customer_code_value: int,
+                         existing: dict[str, Any]) -> list[Any]:
+    """Build DoEditMoshtari's documented 9-slot tuple.
+
+    Tahesab returns BDate but omits Moaref/Code_Moaref from customer readback.
+    Its API example uses "-1" for both referral arguments when they are not supplied.
+    Preserve those values if a source version does return them; otherwise use that
+    documented placeholder. City and Rasteh are readback fields, not edit arguments.
+    """
+    birthdate = _first_present(existing, ("BDate",))
+    if birthdate is _MISSING:
+        raise TahesabFailure("customer_edit_birthdate_unavailable")
+    referrer = _first_present(existing, ("Moaref",))
+    referrer_code = _first_present(existing, ("Code_Moaref",))
+    if referrer is _MISSING:
+        referrer = "-1"
+    if referrer_code is _MISSING:
+        referrer_code = "-1"
+    return [name, group_name, mobile, address, national_id,
+            birthdate, referrer, referrer_code, int(customer_code_value)]
+
+
+_MISSING = object()
+
+
+def _first_present(row: dict[str, Any], names: tuple[str, ...]) -> Any:
+    for name in names:
+        if name in row:
+            return row[name]
+    return _MISSING
 
 
 class TahesabFailure(Exception):

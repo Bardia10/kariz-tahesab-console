@@ -26,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 TAHESAB_URL = adapter.BASE_URL
 DATABASE = os.getenv("TAHESAB_DATABASE", "TahesabDB").strip() or "TahesabDB"
+TAHESAB_TOKEN = os.getenv("TAHESAB_TOKEN", "").strip()
+CONSOLE_PASSWORD = os.getenv("CONSOLE_PASSWORD", "")
 COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "tahesab_test_session")
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "auto").lower()
 APP_ENV = os.getenv("APP_ENV", "development").lower()
@@ -44,6 +46,7 @@ app = FastAPI(title="Tahesab Test Console API", docs_url=None, redoc_url=None)
 sessions: dict[str, tuple[str, float]] = {}
 cache: dict[tuple[str, str], tuple[float, Any, str]] = {}
 document_snapshot_locks: dict[str, asyncio.Lock] = {}
+login_failures: dict[str, tuple[int, float]] = {}
 
 
 class BodyLimitMiddleware:
@@ -99,7 +102,7 @@ async def same_origin_writes(request: Request, call_next):
 
 
 class ConnectIn(BaseModel):
-    token: str = Field(min_length=1, max_length=4096)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class OperationIn(BaseModel):
@@ -199,6 +202,13 @@ def invalidate_document_snapshots(sid: str, code: int) -> None:
     cache.pop((sid, "docs:all"), None)
 
 
+def invalidate_customer_snapshots(sid: str, code: int) -> None:
+    for key in list(cache):
+        if key[0] == sid and (key[1].startswith("customers:") or key[1] == f"customer:{code}"
+                              or key[1].startswith("docs:")):
+            cache.pop(key, None)
+
+
 async def fetch_customer_snapshot(sid: str, token: str, code: int) -> list[dict[str, Any]]:
     key = f"docs:{code}"
     cached = read_cache(sid, key)
@@ -287,19 +297,38 @@ async def session_status(request: Request):
 
 @app.post("/api/connect")
 async def connect(data: ConnectIn, request: Request, response: Response):
+    if not CONSOLE_PASSWORD or not TAHESAB_TOKEN:
+        raise HTTPException(503, "تنظیمات ورود یا اتصال ته حساب روی سرور کامل نیست.")
+    now = time.monotonic()
+    for key, (_, started) in list(login_failures.items()):
+        if now - started >= 60:
+            login_failures.pop(key, None)
+    address = request.client.host if request.client else "unknown"
+    attempts, started = login_failures.get(address, (0, now))
+    if attempts >= 6:
+        raise HTTPException(429, "تلاش‌های ورود زیاد بود. یک دقیقه بعد دوباره امتحان کنید.")
+    if not secrets.compare_digest(data.password.encode(), CONSOLE_PASSWORD.encode()):
+        if len(login_failures) >= 1000:
+            login_failures.pop(next(iter(login_failures)))
+        login_failures[address] = (attempts + 1, started)
+        raise HTTPException(401, "رمز عبور نادرست است.")
+    login_failures.pop(address, None)
     # A database-backed reference-list read is the connection check; health alone is not evidence.
     try:
-        payload = await adapter.verify_database(data.token, DATABASE)
+        payload = await adapter.verify_database(TAHESAB_TOKEN, DATABASE)
         if not isinstance(payload, (dict, list)):
             raise TahesabFailure("upstream_invalid_response")
     except TahesabFailure as exc:
-        raise HTTPException(401, "توکن یا دسترسی به پایگاه داده آزمایشی تأیید نشد. توکن را بررسی کنید.") from exc
+        raise HTTPException(502, "اتصال سرور به ته حساب آزمایشی تأیید نشد. تنظیمات اتصال سرور باید بررسی شود.") from exc
     prune_expired_state()
     if len(sessions) >= MAX_SESSIONS:
         oldest_sid = min(sessions, key=lambda session_id: sessions[session_id][1])
         forget_session(oldest_sid)
     sid = secrets.token_urlsafe(32)
-    sessions[sid] = (data.token, time.monotonic() + 60 * 60 * 12)
+    previous_sid = request.cookies.get(COOKIE_NAME)
+    if previous_sid:
+        forget_session(previous_sid)
+    sessions[sid] = (TAHESAB_TOKEN, time.monotonic() + 60 * 60 * 12)
     response.set_cookie(COOKIE_NAME, sid, httponly=True, secure=cookie_is_secure(request),
                         samesite="strict", max_age=60 * 60 * 12, path="/")
     return {"connected": True, "database": DATABASE, "checked_at": now_label()}
@@ -557,6 +586,8 @@ async def capabilities(request: Request):
     require_session(request)
     return {"writes_enabled": True, "items": [
         {"operation": "customer_create", "verified": True, "enabled": True},
+        {"operation": "customer_edit", "verified": True, "enabled": True,
+         "reason": "ویرایش و بازخوانی مشتری آزمایشی بررسی شد؛ سایر مشخصات مشتری حفظ می‌شود."},
         {"operation": "cash_payment", "verified": True, "enabled": True},
         {"operation": "bank_payment", "verified": True, "enabled": True},
         {"operation": "physical_gold_delivery", "verified": True, "enabled": True,
@@ -574,6 +605,11 @@ async def capabilities(request: Request):
 
 def _operation_response(row):
     return journal.public(row)
+
+
+def _source_customer_value(row: dict[str, Any], aliases: tuple[str, ...]) -> Any:
+    key = next((candidate for candidate in aliases if candidate in row), None)
+    return row.get(key) if key else None
 
 
 def _validated_jalali(date_text: str) -> tuple[int, int, int]:
@@ -744,6 +780,7 @@ async def create_operation(data: OperationIn, request: Request):
         return _operation_response(row)
 
     submitted = False
+    edit_context = None
     try:
         if data.kind == "customer_create":
             name = str(payload.get("full_name", "")).strip()
@@ -782,6 +819,65 @@ async def create_operation(data: OperationIn, request: Request):
                         cache.pop(key, None)
             else:
                 journal.update(data.operation_id, "uncertain", "ثبت پاسخ داده شد، اما بازخوانی مشتری آن را تأیید نکرد.", result)
+            return _operation_response(journal.get(data.operation_id))
+
+        if data.kind == "customer_edit":
+            try:
+                code = int(payload.get("customer_code"))
+            except (TypeError, ValueError):
+                raise HTTPException(422, "کد مشتری معتبر نیست.")
+            if code <= 0:
+                raise HTTPException(422, "کد مشتری معتبر نیست.")
+            source_rows = await adapter.customer_by_code(token, DATABASE, code)
+            current = next((item for item in source_rows if adapter.customer_code(item) == code), None)
+            if current is None:
+                journal.update(data.operation_id, "failed", "مشتری در ته حساب پیدا نشد.")
+                raise HTTPException(404, "مشتری در ته حساب پیدا نشد.")
+            aliases = {
+                "full_name": ("Name",),
+                "group_name": ("GoroupName",),
+                "mobile": ("Mobile",),
+                "address": ("Address",),
+                "national_id": ("CodeMelli",),
+            }
+            values: dict[str, str] = {}
+            for field, keys in aliases.items():
+                source_key = next((key for key in keys if key in current), None)
+                if source_key is None:
+                    journal.update(data.operation_id, "failed", "اطلاعات مشتری در پاسخ ته حساب کامل نیست؛ تغییری ارسال نشد.")
+                    raise HTTPException(409, "اطلاعات مشتری در پاسخ ته حساب کامل نیست؛ تغییری ارسال نشد.")
+                source_value = current.get(source_key) if source_key else ""
+                values[field] = str(payload[field]).strip() if field in payload else str(source_value or "")
+            name, group = values["full_name"], values["group_name"]
+            if not name or not group or len(name) > 150 or len(group) > 120 or len(values["mobile"]) > 32 or len(values["address"]) > 300 or len(values["national_id"]) > 32:
+                raise HTTPException(422, "مقادیر اطلاعات مشتری معتبر نیست.")
+            group_rows = (await adapter.reference_catalogues(token, DATABASE)).get("groups")
+            allowed_groups = {normalize(g.get("Name") or g.get("Gorooh") or g.get("GoroohName") or g.get("GroupName")) for g in group_rows or []}
+            if group and allowed_groups and normalize(group) not in allowed_groups:
+                raise HTTPException(422, "گروه مشتری را از فهرست ته حساب انتخاب کنید.")
+            try:
+                params = adapter.edit_customer_params(name, group, values["mobile"], values["address"],
+                                                      values["national_id"], code, current)
+            except TahesabFailure as exc:
+                journal.update(data.operation_id, "failed", "اطلاعات لازم برای حفظ سایر مشخصات مشتری دریافت نشد؛ تغییری ارسال نشد.")
+                raise HTTPException(409, "اطلاعات لازم برای حفظ سایر مشخصات مشتری دریافت نشد؛ تغییری ارسال نشد.") from exc
+            edit_context = {"pre_write": {"expected": values,
+                            "preserved": {key: current[key] for key in ("BDate", "City", "Rasteh") if key in current}}}
+            journal.update(data.operation_id, "submitting", "در حال ذخیره اطلاعات مشتری…", edit_context)
+            submitted = True
+            result = await adapter.write_call(token, DATABASE, "customer_edit", params)
+            readback_rows = await adapter.customer_by_code(token, DATABASE, code)
+            after = next((item for item in readback_rows if adapter.customer_code(item) == code), None)
+            matches = bool(after and all(normalize(_source_customer_value(after, aliases[key])) == normalize(value)
+                                         for key, value in values.items())
+                           and all(key in after and normalize(after[key]) == normalize(value)
+                                   for key, value in edit_context["pre_write"]["preserved"].items()))
+            saved = {**edit_context, "response": result, "customer": after}
+            if matches:
+                journal.update(data.operation_id, "verified", "اطلاعات مشتری ذخیره شد و از ته حساب بازخوانی و بررسی شد.", saved)
+                invalidate_customer_snapshots(sid, code)
+            else:
+                journal.update(data.operation_id, "uncertain", "بازخوانی ته حساب همه تغییرات را تأیید نکرد؛ نتیجه نیازمند بررسی است و درخواست دوباره ارسال نشد.", saved)
             return _operation_response(journal.get(data.operation_id))
 
         if data.kind == "cash_payment":
@@ -1185,17 +1281,17 @@ async def create_operation(data: OperationIn, request: Request):
         journal.update(data.operation_id, "failed", "این عملیات فعال نیست؛ قرارداد منبع هنوز تأیید نشده است.")
         raise HTTPException(409, "این عملیات فعال نیست؛ قرارداد منبع یا نگاشت محصول هنوز تأیید نشده است.")
     except adapter.TahesabWriteUncertain:
-        journal.update(data.operation_id, "uncertain", "نتیجه ثبت نامشخص است. ارسال دوباره انجام نشد؛ عملیات را از منبع بررسی کنید.")
+        journal.update(data.operation_id, "uncertain", "نتیجه ثبت نامشخص است. ارسال دوباره انجام نشد؛ عملیات را از منبع بررسی کنید.", edit_context)
         return _operation_response(journal.get(data.operation_id))
     except HTTPException as exc:
         if submitted:
-            journal.update(data.operation_id, "uncertain", "ارسال انجام شد، اما بازخوانی یا بررسی کامل نشد. ارسال دوباره انجام نمی‌شود.")
+            journal.update(data.operation_id, "uncertain", "ارسال انجام شد، اما بازخوانی یا بررسی کامل نشد. ارسال دوباره انجام نمی‌شود.", edit_context)
         else:
             journal.update(data.operation_id, "failed", str(exc.detail))
         raise
     except adapter.TahesabFailure:
         if submitted:
-            journal.update(data.operation_id, "uncertain", "ارسال انجام شد، اما بازخوانی منبع ناموفق بود. ارسال دوباره انجام نمی‌شود.")
+            journal.update(data.operation_id, "uncertain", "ارسال انجام شد، اما بازخوانی منبع ناموفق بود. ارسال دوباره انجام نمی‌شود.", edit_context)
             return _operation_response(journal.get(data.operation_id))
         journal.update(data.operation_id, "failed", "منبع درخواست را نپذیرفت.")
         raise HTTPException(502, "ته حساب درخواست را نپذیرفت. نتیجه را در صفحه عملیات بررسی کنید.")
@@ -1218,6 +1314,32 @@ async def verify_operation(operation_id: str, request: Request):
         exact = [r for r in matches if normalize(r.get("Name")) == normalize(payload.get("full_name"))]
         if len(exact) == 1:
             journal.update(operation_id, "verified", "یک مشتری با نام و شماره یکسان از منبع پیدا شد.", exact[0])
+        return _operation_response(journal.get(operation_id))
+    if row["kind"] == "customer_edit":
+        saved = json.loads(row.get("source_response") or "{}")
+        context = saved.get("pre_write") or {}
+        if not context.get("expected"):
+            return _operation_response(journal.update(operation_id, "uncertain", "اطلاعات پیش از ویرایش برای بررسی کامل موجود نیست؛ درخواست دوباره ارسال نشد.", saved))
+        fields = {
+            "full_name": ("Name",),
+            "group_name": ("GoroupName",),
+            "mobile": ("Mobile",),
+            "address": ("Address",),
+            "national_id": ("CodeMelli",),
+        }
+        try:
+            code = int(payload["customer_code"])
+            rows = await adapter.customer_by_code(token, DATABASE, code)
+        except (KeyError, TypeError, ValueError, adapter.TahesabFailure):
+            return _operation_response(journal.update(operation_id, "uncertain", "بازخوانی مشتری ممکن نشد؛ نتیجه نیازمند بررسی است و درخواست دوباره ارسال نشد.", saved))
+        customer = next((item for item in rows if adapter.customer_code(item) == code), None)
+        if (customer and all(normalize(_source_customer_value(customer, fields[key])) == normalize(value)
+                            for key, value in context["expected"].items() if key in fields)
+                and all(key in customer and normalize(customer[key]) == normalize(value)
+                        for key, value in context.get("preserved", {}).items())):
+            journal.update(operation_id, "verified", "تغییرات مشتری از ته حساب بازخوانی و تأیید شد.",
+                           {**saved, "customer": customer})
+            invalidate_customer_snapshots(sid, code)
         return _operation_response(journal.get(operation_id))
     if row["kind"] in {"physical_coin", "physical_bar", "trade_coin", "trade_bar"}:
         try:
@@ -1345,7 +1467,7 @@ async def verify_operation(operation_id: str, request: Request):
 @app.get("/api/operations")
 async def operations(request: Request):
     require_session(request)
-    client_kinds = {"customer_create", "cash_payment", "bank_payment", "gold_receipt_750", "physical_gold", "trade_gold",
+    client_kinds = {"customer_create", "customer_edit", "cash_payment", "bank_payment", "gold_receipt_750", "physical_gold", "trade_gold",
                     "physical_coin", "physical_bar", "trade_coin", "trade_bar"}
     rows = [row for row in journal.list_recent() if row.get("kind") in client_kinds]
     return {"items": [_operation_response(row) for row in rows], "note": "ثبت محلی؛ نتیجه نامشخص هیچ‌گاه خودکار دوباره ارسال نمی‌شود."}

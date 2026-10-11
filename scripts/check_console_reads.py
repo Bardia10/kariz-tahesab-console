@@ -27,7 +27,7 @@ async def main():
                   "frames": [[f.filename.rsplit("\\", 1)[-1], f.lineno, f.name] for f in traceback.extract_tb(exc.__traceback__)[-5:]]}
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        connected = await client.post("/api/connect", headers={"Origin": "http://testserver"}, json={"token": token})
+        connected = await client.post("/api/connect", headers={"Origin": "http://testserver"}, json={"password": dotenv_values(ROOT / ".env").get("CONSOLE_PASSWORD", "")})
         if connected.status_code != 200:
             print(json.dumps({"connect_http": connected.status_code}))
             return

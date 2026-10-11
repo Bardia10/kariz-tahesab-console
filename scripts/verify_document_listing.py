@@ -80,7 +80,7 @@ async def verify_client(token: str, save_readback: bool = False):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app),
                                  base_url="http://127.0.0.1:47183",
                                  headers={"Origin": "http://127.0.0.1:47183"}) as client:
-        connected = await client.post("/api/connect", json={"token": token})
+        connected = await client.post("/api/connect", json={"password": dotenv_values(ROOT / ".env").get("CONSOLE_PASSWORD", "")})
         if connected.status_code != 200:
             print(json.dumps({"client_connection_http": connected.status_code}))
             return

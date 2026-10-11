@@ -27,20 +27,37 @@ async function main() {
     const queries = [];
     let forceFailure = false;
     let writeCount = 0;
+    let customer = { Code: 1, Name: 'مشتری نمونه', Mobile: '09120000001', GroupName: 'test', Address: 'نشانی نمونه', CodeMeli: '0012345678' };
+    let connectBody;
+    let customerEditBody;
     let releaseWrite;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
       const url = new URL(route.request().url());
       let body = {};
       let status = 200;
-      if (url.pathname === '/api/session') body = { connected: true };
-      if (url.pathname === '/api/customers') body = { items: [{ Code: 1, Name: 'مشتری نمونه' }], from_code: 1, to_code: 250 };
+      if (url.pathname === '/api/session') body = { connected: false };
+      if (url.pathname === '/api/connect' && route.request().method() === 'POST') {
+        connectBody = route.request().postDataJSON();
+        assert.deepEqual(connectBody, { password: 'kariz' });
+        body = { connected: true };
+      }
+      if (url.pathname === '/api/customers') body = { items: [customer], from_code: 1, to_code: 250 };
+      if (url.pathname === '/api/customers/1') body = { item: customer };
       if (url.pathname === '/api/capabilities') body = { items: [] };
-      if (url.pathname === '/api/catalogue') body = { mapping: { products: [], source_gold_modes: [] }, source_catalogues: { groups: [], bank_accounts: [] } };
+      if (url.pathname === '/api/catalogue') body = { mapping: { products: [], source_gold_modes: [] }, source_catalogues: { groups: [{ Name: 'test' }], bank_accounts: [] } };
       if (url.pathname === '/api/operations' && route.request().method() === 'POST') {
-        writeCount++;
-        await new Promise(resolve => { releaseWrite = resolve; });
-        body = { ...route.request().postDataJSON(), status: 'uncertain', message: 'نتیجه نیازمند بررسی است' };
+        const operation = route.request().postDataJSON();
+        if (operation.kind === 'customer_edit') {
+          customerEditBody = operation;
+          customer = { ...customer, Name: operation.payload.full_name, Mobile: operation.payload.mobile,
+            Address: operation.payload.address, CodeMeli: operation.payload.national_id };
+          body = { ...operation, status: 'verified', source_response: { customer } };
+        } else {
+          writeCount++;
+          await new Promise(resolve => { releaseWrite = resolve; });
+          body = { ...operation, status: 'uncertain', message: 'نتیجه نیازمند بررسی است' };
+        }
       }
       if (url.pathname === '/api/documents') {
         queries.push(Object.fromEntries(url.searchParams));
@@ -57,6 +74,10 @@ async function main() {
       await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.getByLabel('رمز عبور').fill('kariz');
+    await page.getByRole('button', { name: 'ورود', exact: true }).click();
+    await page.locator('.documents-page tbody tr').first().waitFor();
+    assert.deepEqual(connectBody, { password: 'kariz' });
     await page.locator('.documents-page tbody tr').first().waitFor();
     assert.equal(await page.locator('.documents-page h1').innerText(), 'اسناد');
     assert.equal(await page.locator('.documents-page tbody tr').count(), 25);
@@ -86,6 +107,31 @@ async function main() {
     await page.locator('.document-types').getByRole('button', { name: 'همه اسناد', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('.document-types button.chosen').textContent === 'همه اسناد' && !document.querySelector('.notice.loading'));
     await page.screenshot({ path: path.join(root, '.local', 'documents-desktop.png'), fullPage: true });
+    await page.locator('.sidebar nav').getByRole('button', { name: /مشتریان/ }).click();
+    await page.getByRole('button', { name: 'دریافت بازه', exact: true }).click();
+    await page.getByRole('button', { name: /مشاهده/ }).click();
+    await page.getByRole('heading', { name: 'مشتری نمونه', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'ویرایش اطلاعات', exact: true }).click();
+    const edit = page.getByRole('dialog', { name: 'ویرایش اطلاعات مشتری' });
+    await edit.waitFor();
+    assert.equal(await edit.getByLabel('نام کامل').inputValue(), 'مشتری نمونه');
+    assert.equal(await edit.getByLabel('شماره تماس').inputValue(), '09120000001');
+    assert.equal(await edit.getByLabel('نشانی').inputValue(), 'نشانی نمونه');
+    assert.equal(await edit.getByLabel('کد ملی').inputValue(), '0012345678');
+    assert.equal(await edit.getByLabel('کد ثابت').isDisabled(), true);
+    await edit.getByLabel('نام کامل').fill('مشتری ویرایش‌شده');
+    await edit.getByLabel('شماره تماس').fill('09129999999');
+    await edit.getByLabel('نشانی').fill('نشانی جدید');
+    await edit.getByLabel('کد ملی').fill('0098765432');
+    page.once('dialog', confirmation => confirmation.accept());
+    await edit.getByRole('button', { name: /ذخیره|ویرایش/ }).click();
+    await page.getByRole('heading', { name: 'مشتری ویرایش‌شده', exact: true }).waitFor();
+    assert.equal(customerEditBody.kind, 'customer_edit');
+    assert.deepEqual(customerEditBody.payload, { customer_code: 1, full_name: 'مشتری ویرایش‌شده', group_name: 'test',
+      mobile: '09129999999', address: 'نشانی جدید', national_id: '0098765432' });
+    assert.equal(await page.getByRole('heading', { name: 'مشتری ویرایش‌شده', exact: true }).count(), 1);
+    assert.equal(await page.locator('.page table tbody tr').filter({ hasText: 'مشتری ویرایش‌شده' }).count(), 1);
+    await page.locator('.page .modal').getByRole('button', { name: '×', exact: true }).click();
     for (const [nav, kind, add] of [
       ['واریز و برداشت', 'payment', 'واریز یا برداشت جدید'],
       ['دریافت و تحویل کالا', 'delivery', 'دریافت یا تحویل جدید'],
@@ -147,7 +193,7 @@ async function main() {
     assert.equal(await dialog.getByRole('button', { name: 'بررسی خلاصه و ثبت', exact: true }).isDisabled(), true);
     await page.getByRole('button', { name: 'بستن پنجره', exact: true }).click();
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ auto_load: true, visible_documents: 25, advanced_filters_collapsed: true,
+    console.log(JSON.stringify({ password_login: 'passed', customer_edit: 'passed', auto_load: true, visible_documents: 25, advanced_filters_collapsed: true,
       details: 'passed', pagination: 'passed', type_filter: 'passed', search_empty_state: 'passed',
       failure_keeps_previous_rows: true, category_pages: 'passed', creation_modals: 'passed',
       mobile_drawer: 'passed', pending_close_guard: 'passed', uncertain_not_resent: true, browser_errors: errors.length }));

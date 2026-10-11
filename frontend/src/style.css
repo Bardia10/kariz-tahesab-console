@@ -88,6 +88,7 @@ th{font-size:13px;padding:12px 14px}td{font-size:14px;padding:12px 14px}td b{fon
 .creation-modal .createcard{margin:0;border:0;border-radius:14px;box-shadow:none;overflow:visible}
 .creation-modal .createbody{padding:20px}
 .creation-modal .createcard .cardhead b{display:none}.creation-modal .createcard .cardhead{padding:10px 20px;background:#f7faf8}.creation-modal .modalhead{padding:20px}.creation-modal .createcard .cardhead small{margin:0}
+.detailactions{display:flex;justify-content:flex-start;margin:0 0 18px}.customer-edit-modal .creategrid{padding:20px}.customer-edit-modal .notice{margin:12px 20px}
 .headingactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .headingactions button{font-size:14px;min-height:42px}
 @media(max-width:760px){
