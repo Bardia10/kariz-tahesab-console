@@ -1,3 +1,4 @@
+import { consoleUrl } from './deployment.js';
 import { useEffect, useRef, useState } from 'react';
 import CustomerSelector from './CustomerSelector.jsx';
 
@@ -5,7 +6,7 @@ const toEn=(v='')=>String(v).replace(/[\u06f0-\u06f9\u0660-\u0669]/g,d=>String(d
 const fa=v=>String(v??'').replace(/[0-9]/g,d=>String.fromCharCode(0x06f0+Number(d)));
 const grouped=v=>{const x=toEn(v).replace(/,/g,'').replace(/[^0-9.]/g,'');const [whole,frac]=x.split('.');const digits=(whole||'').replace(/\B(?=(\d{3})+(?!\d))/g,'\u066c');return fa(digits)+(frac!==undefined?'\u066b'+fa(frac):'')};
 const today=()=>new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).replaceAll('\u066b','/').replaceAll('-','/');
-async function api(url,opts={}){const res=await fetch(url,{credentials:'include',...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers}});const body=await res.json().catch(()=>({}));if(!res.ok)throw Error(body.detail||'درخواست انجام نشد.');return body}
+async function api(url,opts={}){const res=await fetch(consoleUrl(url),{credentials:'include',...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers}});const body=await res.json().catch(()=>({}));if(!res.ok)throw Error(body.detail||'درخواست انجام نشد.');return body}
 
 const creationTitle=active=>active==='payments'?'ثبت پرداخت یا برداشت':active==='deliveries'?'ثبت دریافت یا تحویل فیزیکی':'ایجاد معامله حسابداری';
 export function CreationModal({active,customers,selected,catalog,onSaved,onClose}){

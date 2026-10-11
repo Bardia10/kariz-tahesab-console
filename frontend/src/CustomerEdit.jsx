@@ -1,3 +1,4 @@
+import { consoleUrl } from './deployment.js';
 import { useEffect, useRef, useState } from 'react';
 
 const aliases = {
@@ -17,7 +18,7 @@ const usable = value => value != null && String(value).toLowerCase() !== 'null';
 const asciiDigits = value => String(value).replace(/[۰-۹٠-٩]/g, digit => String(digit.charCodeAt(0) >= 0x06f0 && digit.charCodeAt(0) <= 0x06f9 ? digit.charCodeAt(0) - 0x06f0 : digit.charCodeAt(0) - 0x0660));
 
 async function postOperation(body) {
-  const response = await fetch('/api/operations', {
+  const response = await fetch(consoleUrl('/api/operations'), {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));

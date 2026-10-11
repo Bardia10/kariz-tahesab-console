@@ -1,3 +1,4 @@
+import { consoleUrl } from './deployment.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CustomerCreate, OperationList, CreationModal } from './CreatePanels.jsx';
 import DocumentsPage from './DocumentsPage.jsx';
@@ -12,7 +13,7 @@ const fa=v=>{if(missingSource(v))return '—';const s=toEn(v).trim();if(!/^[+-]?
 const name=r=>r?.Name||r?.name||r?.FullName||r?.Name_Moshtari||r?.MoshtariName||'نام در منبع ثبت نشده';
 const code=r=>r?.Code??r?.MCode??r?.code??r?.MoshtariCode??'';
 const mobile=r=>r?.Mobile||r?.mobile||r?.Tel||r?.Phone||r?.MobileNo||'';
-async function api(url,opts={}){const r=await fetch(url,{credentials:'include',...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers}});let b={};try{b=await r.json()}catch{}if(!r.ok)throw Error(b.detail||'دریافت اطلاعات ناموفق بود.');return b}
+async function api(url,opts={}){const r=await fetch(consoleUrl(url),{credentials:'include',...opts,headers:{...(opts.body?{'Content-Type':'application/json'}:{}),...opts.headers}});let b={};try{b=await r.json()}catch{}if(!r.ok)throw Error(b.detail||'دریافت اطلاعات ناموفق بود.');return b}
 function Spinner(){return <span className="spinner"/>}
 function Loading(){return <div className="notice loading"><Spinner/>در حال دریافت اطلاعات از ته حساب…</div>}
 function Empty({children}){return <div className="empty"><span>⌁</span>{children}</div>}

@@ -1,3 +1,4 @@
+import { consoleUrl } from './deployment.js';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 const toEn = (value = '') => String(value)
@@ -13,7 +14,7 @@ const phone = row => row?.Mobile || row?.mobile || row?.Tel || row?.Phone || row
 const matchesCode = (row, value) => String(code(row)) === String(value);
 
 async function fetchJson(url, signal) {
-  const response = await fetch(url, { credentials: 'include', signal });
+  const response = await fetch(consoleUrl(url), { credentials: 'include', signal });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.detail || 'دریافت فهرست مشتریان ناموفق بود.');
   return body;
