@@ -894,11 +894,12 @@ async def create_operation(data: OperationIn, request: Request):
                 source_value = current.get(source_key) if source_key else ""
                 values[field] = str(payload[field]).strip() if field in payload else str(source_value or "")
             name, group = values["full_name"], values["group_name"]
-            if not name or not group or len(name) > 150 or len(group) > 120 or len(values["mobile"]) > 32 or len(values["address"]) > 300 or len(values["national_id"]) > 32:
+            group_changed = normalize(group) != normalize(current.get("GoroupName"))
+            if not name or (group_changed and not group) or len(name) > 150 or len(group) > 120 or len(values["mobile"]) > 32 or len(values["address"]) > 300 or len(values["national_id"]) > 32:
                 raise HTTPException(422, "مقادیر اطلاعات مشتری معتبر نیست.")
-            group_rows = (await adapter.reference_catalogues(token, DATABASE)).get("groups")
+            group_rows = (await adapter.reference_catalogues(token, DATABASE)).get("groups") if group_changed else []
             allowed_groups = {normalize(g.get("Name") or g.get("Gorooh") or g.get("GoroohName") or g.get("GroupName")) for g in group_rows or []}
-            if group and allowed_groups and normalize(group) not in allowed_groups:
+            if group_changed and group and allowed_groups and normalize(group) not in allowed_groups:
                 raise HTTPException(422, "گروه مشتری را از فهرست ته حساب انتخاب کنید.")
             try:
                 params = adapter.edit_customer_params(name, group, values["mobile"], values["address"],
@@ -1327,12 +1328,16 @@ async def create_operation(data: OperationIn, request: Request):
 
         journal.update(data.operation_id, "failed", "این عملیات فعال نیست؛ قرارداد منبع هنوز تأیید نشده است.")
         raise HTTPException(409, "این عملیات فعال نیست؛ قرارداد منبع یا نگاشت محصول هنوز تأیید نشده است.")
+    except adapter.TahesabWriteRejected:
+        journal.update(data.operation_id, "failed", "ته حساب درخواست ثبت را رد کرد. اطلاعات فرم را اصلاح کنید و دوباره تأیید کنید.", edit_context)
+        return _operation_response(journal.get(data.operation_id))
     except adapter.TahesabWriteUncertain:
         journal.update(data.operation_id, "uncertain", "نتیجه ثبت نامشخص است. ارسال دوباره انجام نشد؛ عملیات را از منبع بررسی کنید.", edit_context)
         return _operation_response(journal.get(data.operation_id))
     except HTTPException as exc:
         if submitted:
             journal.update(data.operation_id, "uncertain", "ارسال انجام شد، اما بازخوانی یا بررسی کامل نشد. ارسال دوباره انجام نمی‌شود.", edit_context)
+            return _operation_response(journal.get(data.operation_id))
         else:
             journal.update(data.operation_id, "failed", str(exc.detail))
         raise

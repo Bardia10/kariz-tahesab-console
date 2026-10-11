@@ -36,6 +36,7 @@ async function main() {
     }));
     let connectBody;
     let customerEditBody;
+    let rejectedEditId;
     let releaseWrite;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
@@ -64,6 +65,12 @@ async function main() {
       if (url.pathname === '/api/operations' && route.request().method() === 'POST') {
         const operation = route.request().postDataJSON();
         if (operation.kind === 'customer_edit') {
+          if (!rejectedEditId) {
+            rejectedEditId = operation.operation_id;
+            await route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'گروه مشتری معتبر نیست؛ آن را اصلاح کنید.' }) });
+            return;
+          }
+          assert.notEqual(operation.operation_id, rejectedEditId);
           customerEditBody = operation;
           customer = { ...customer, Name: operation.payload.full_name, Mobile: operation.payload.mobile,
             Address: operation.payload.address, CodeMeli: operation.payload.national_id };
@@ -138,6 +145,12 @@ async function main() {
     await edit.getByLabel('شماره تماس').fill('09129999999');
     await edit.getByLabel('نشانی').fill('نشانی جدید');
     await edit.getByLabel('کد ملی').fill('0098765432');
+    page.once('dialog', confirmation => confirmation.accept());
+    await edit.getByRole('button', { name: /ذخیره|ویرایش/ }).click();
+    await edit.locator('.opstatus.failed').waitFor();
+    assert.match(await edit.locator('.opmessage').textContent(), /گروه مشتری معتبر نیست/);
+    await edit.getByLabel('نشانی').fill('نشانی اصلاح‌شده');
+    await edit.getByLabel('نشانی').fill('نشانی جدید');
     page.once('dialog', confirmation => confirmation.accept());
     await edit.getByRole('button', { name: /ذخیره|ویرایش/ }).click();
     await page.getByRole('heading', { name: 'مشتری ویرایش‌شده', exact: true }).waitFor();

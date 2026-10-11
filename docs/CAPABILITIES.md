@@ -23,6 +23,8 @@ All financial creates persist a factor and local operation record before sending
 
 ## Test data notes
 
+Customer-edit regression verification on 2026-10-11 used test customer `1894`, whose `BDate` is null. `DoEditMoshtari` rejects JSON null with an integer-conversion error; the `"-1"` date argument preserves the empty birthdate. The `"-1"` group argument was also verified to preserve the current group, allowing unchanged historical groups that are absent from the current catalogue. The fixed client API verified name/contact/address/national-ID edits, duplicate-operation protection, and restoration of the original test customer. Explicit source rejection is shown as failed; lost responses and failed readback remain uncertain.
+
 Controlled verification used source customer `1891`. Test receipts, deliveries and trades were paired or compensated so the final balance returned to its prior value. One earlier malformed probe remains visible in the test history with uncertain status; it is not treated as a successful document or resent.
 
 Customer editing verification used dedicated source customer `1896`. A nonempty birthdate was preserved through the edit and restore; source `City` and `Rasteh` readbacks were unchanged because they are not edit tuple positions. The API documentation's example uses `-1` for the omitted referrer arguments, but those fields are not exposed in source readback. Customer `1894` was created during initial field discovery and remains unchanged.

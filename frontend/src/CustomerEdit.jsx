@@ -21,7 +21,10 @@ async function postOperation(body) {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.detail || 'پاسخ سرور دریافت نشد؛ نتیجه عملیات نامشخص است.');
+  if (!response.ok) { const error = new Error(result.detail || 'پاسخ سرور دریافت نشد؛ نتیجه عملیات نامشخص است.');
+    error.status = response.status;
+    throw error;
+  }
   return result;
 }
 
@@ -32,7 +35,15 @@ export function CustomerEdit({ customer, groups = [], onClose, onSaved }) {
   const [changed, setChanged] = useState(() => new Set());
   const [busy, setBusy] = useState(false), [result, setResult] = useState(null);
   const customerCode = codeOf(customer);
-  const put = (key, value) => { setForm(current => ({ ...current, [key]: value })); setChanged(current => new Set(current).add(key)); };
+  const put = (key, value) => {
+    setForm(current => ({ ...current, [key]: value }));
+    setChanged(current => new Set(current).add(key));
+    if (result?.status === "failed") {
+      sent.current = false;
+      operationId.current = null;
+      setResult(null);
+    }
+  };
   const close = () => { if (!pending.current) onClose?.(); };
 
   useEffect(() => {
@@ -69,7 +80,13 @@ export function CustomerEdit({ customer, groups = [], onClose, onSaved }) {
       const op = await postOperation({ operation_id: id, kind: 'customer_edit', payload });
       setResult(op); onSaved?.(op);
     } catch (error) {
+      if (error.status >= 400 && error.status < 500 && error.status !== 408) {
+        sent.current = false;
+        operationId.current = null;
+        setResult({ status: 'failed', message: error.message });
+      } else {
       setResult({ status: 'uncertain', message: `${error.message} برای جلوگیری از ثبت تکراری، دوباره ارسال نکنید؛ وضعیت را در «عملیات این پنل» بررسی کنید.` });
+      }
     } finally { setBusy(false); pending.current = false; }
   }
 

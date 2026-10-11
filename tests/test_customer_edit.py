@@ -56,11 +56,34 @@ class CustomerEditTests(unittest.IsolatedAsyncioTestCase):
 
     def test_edit_params_keep_source_owned_optional_fields(self):
         params = tahesab.edit_customer_params("New", "صندوق", "0912", "Address", "001", 42, self.customer)
-        self.assertEqual(params, ["New", "صندوق", "0912", "Address", "001",
+        self.assertEqual(params, ["New", "-1", "0912", "Address", "001",
                                   "1370/01/02", "Existing referrer", "17", 42])
         fallback = tahesab.edit_customer_params("New", "صندوق", "0912", "Address", "001", 42,
             {"Code": 42, "BDate": None})
-        self.assertEqual(fallback[5:8], [None, "-1", "-1"])
+        self.assertEqual(fallback[5:8], ["-1", "-1", "-1"])
+
+    async def test_null_birthdate_and_legacy_group_are_preserved(self):
+        self.customer.update(BDate=None, GoroupName="حرفه‌اي")
+        async def write(token, database, operation, params):
+            self.assertEqual(params[1], "-1")
+            self.assertEqual(params[5], "-1")
+            self.customer["Name"] = params[0]
+            return {"Edited": 42}
+        self.write.side_effect = write
+        response = await self.client.post("/api/operations", json={
+            "operation_id": self.row["operation_id"], "kind": "customer_edit",
+            "payload": {"customer_code": 42, "full_name": "New", "group_name": "حرفه‌اي"}})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "verified")
+        self.groups.assert_not_awaited()
+
+    async def test_explicit_source_rejection_is_failed_not_uncertain(self):
+        self.write.side_effect = tahesab.TahesabWriteRejected("upstream_rejected_request")
+        response = await self.client.post("/api/operations", json={
+            "operation_id": self.row["operation_id"], "kind": "customer_edit",
+            "payload": {"customer_code": 42, "full_name": "New"}})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "failed")
 
     async def test_edit_uses_fresh_values_and_verifies_source_readback(self):
         async def write(token, database, operation, params):

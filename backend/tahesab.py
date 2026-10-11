@@ -56,6 +56,12 @@ def edit_customer_params(name: str, group_name: str, mobile: str, address: str,
     birthdate = _first_present(existing, ("BDate",))
     if birthdate is _MISSING:
         raise TahesabFailure("customer_edit_birthdate_unavailable")
+    # The source rejects JSON null here; -1 preserves an empty source date.
+    if birthdate is None or str(birthdate).strip().lower() in ("", "null"):
+        birthdate = "-1"
+    # -1 preserves the group, including historical groups absent from the list.
+    if normalize(group_name) == normalize(existing.get("GoroupName")):
+        group_name = "-1"
     referrer = _first_present(existing, ("Moaref",))
     referrer_code = _first_present(existing, ("Code_Moaref",))
     if referrer is _MISSING:
@@ -78,6 +84,10 @@ def _first_present(row: dict[str, Any], names: tuple[str, ...]) -> Any:
 
 class TahesabFailure(Exception):
     pass
+
+
+class TahesabWriteRejected(TahesabFailure):
+    """The source explicitly rejected a write, rather than losing its response."""
 
 
 class TahesabWriteUncertain(Exception):
@@ -199,10 +209,13 @@ async def write_call(token: str, database: str, operation: str, params: list[Any
     if response.status_code >= 500:
         raise TahesabWriteUncertain("write_server_uncertain")
     if response.status_code >= 400:
-        raise TahesabFailure("upstream_rejected_request")
-    _check_business_error(payload)
+        raise TahesabWriteRejected("upstream_rejected_request")
+    try:
+        _check_business_error(payload)
+    except TahesabFailure as exc:
+        raise TahesabWriteRejected("upstream_business_error") from exc
     if isinstance(payload, dict) and any(k in payload for k in ("ERROR", "error")):
-        raise TahesabFailure("upstream_business_error")
+        raise TahesabWriteRejected("upstream_business_error")
     return payload
 
 
