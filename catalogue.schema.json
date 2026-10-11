@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tahesab test console product mapping",
+  "type": "object",
+  "required": ["version", "products"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "kariz_catalogue_fetched_at": { "type": ["string", "null"] },
+    "source_gold_modes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "title_fa", "source_family", "source_document_mode", "source_mode_label", "source_identifier", "source_name", "unit", "purity", "mesghal_to_gram_factor", "verified", "physical_enabled", "trade_enabled"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "title_fa": { "type": "string", "minLength": 1 },
+          "source_family": { "const": "gold" },
+          "source_document_mode": { "enum": [0, 1] },
+          "source_mode_label": { "type": "string", "minLength": 1 },
+          "source_identifier": { "type": ["string", "integer", "null"] },
+          "source_name": { "type": "string", "minLength": 1 },
+          "unit": { "const": "gram" },
+          "purity": { "type": "integer", "minimum": 1, "maximum": 1000 },
+          "mesghal_to_gram_factor": { "type": "number", "exclusiveMinimum": 0 },
+          "verified": { "type": "boolean" },
+          "verification_evidence": { "type": ["string", "null"] },
+          "physical_enabled": { "type": "boolean" },
+          "trade_enabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "title_fa", "source_name", "source_family", "unit", "display_category", "verified"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "title_fa": { "type": "string", "minLength": 1 },
+          "kariz_product_id": { "type": ["integer", "null"] },
+          "kohan_product_id": { "type": ["integer", "null"] },
+          "source_identifier": { "type": ["string", "integer", "null"] },
+          "source_name": { "type": "string", "minLength": 1 },
+          "source_catalogue_name": { "type": ["string", "null"] },
+          "configured_tahesab_name": { "type": ["string", "null"] },
+          "source_document_mode": { "type": ["integer", "null"], "enum": [0, 1, null] },
+          "source_mode_label": { "type": ["string", "null"] },
+          "physical_enabled": { "type": "boolean" },
+          "trade_enabled": { "type": "boolean" },
+          "source_family": { "enum": ["gold", "coin", "bar", "handmade", "other"] },
+          "unit": { "enum": ["gram", "count"] },
+          "source_weight": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+          "purity": { "type": ["integer", "null"], "minimum": 1, "maximum": 1000 },
+          "mesghal_to_gram_factor": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+          "metal": { "type": ["string", "null"] },
+          "display_category": { "type": "string", "minLength": 1 },
+          "verified": { "type": "boolean" },
+          "verification_evidence": { "type": ["string", "null"] },
+          "candidate_source_names": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

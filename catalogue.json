@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "kariz_catalogue_fetched_at": "2026-10-10T10:41:51.788642+00:00",
+  "source_gold_modes": [
+    {
+      "key": "gold_abshode_750",
+      "title_fa": "طلای آبشده ۷۵۰",
+      "source_family": "gold",
+      "source_document_mode": 1,
+      "source_mode_label": "آبشده",
+      "source_identifier": null,
+      "source_name": "آبشده",
+      "unit": "gram",
+      "purity": 750,
+      "mesghal_to_gram_factor": 4.3318,
+      "verified": true,
+      "verification_evidence": "Both physical directions and both accounting trade directions were verified on Tahesab test with exact mode, weight, purity, rate basis, document identity, and balance readback.",
+      "physical_enabled": true,
+      "trade_enabled": true
+    }
+  ],
+  "products": [
+    {
+      "key": "gold_750",
+      "title_fa": "طلای متفرقه (شکسته)",
+      "kariz_product_id": 1,
+      "kohan_product_id": 1,
+      "source_identifier": null,
+      "source_name": "متفرقه",
+      "source_catalogue_name": null,
+      "source_family": "gold",
+      "source_document_mode": 0,
+      "source_mode_label": "متفرقه",
+      "physical_enabled": true,
+      "trade_enabled": false,
+      "unit": "gram",
+      "configured_tahesab_name": null,
+      "source_weight": null,
+      "purity": 750,
+      "mesghal_to_gram_factor": 4.3318,
+      "metal": "0",
+      "display_category": "gold",
+      "verified": true,
+      "verification_evidence": "The Kariz label maps to Tahesab's verified miscellaneous-gold document mode (0) for physical receipts and deliveries. Accounting trades sent in this mode are returned without a mode identity, so gold_750 accounting trades remain disabled.",
+      "candidate_source_names": []
+    },
+    {
+      "key": "coin_emami",
+      "title_fa": "تمام سکه ۸۶",
+      "kariz_product_id": 2,
+      "kohan_product_id": 4,
+      "source_identifier": "سکه امامی",
+      "source_name": "سکه امامی",
+      "source_catalogue_name": "امامي",
+      "source_family": "coin",
+      "unit": "count",
+      "configured_tahesab_name": "سکه امامی",
+      "source_weight": 8.133,
+      "purity": 900,
+      "mesghal_to_gram_factor": null,
+      "metal": "0",
+      "display_category": "coin",
+      "verified": true,
+      "verification_evidence": "The exact configured Tahesab name is present as a source balance field; the live product catalogue returns 'امامي' as its label.",
+      "candidate_source_names": [
+        "امامي"
+      ]
+    },
+    {
+      "key": "silver_bar_nadir",
+      "title_fa": "شمش نقره ۱۰۰۰ گرمی نادیر",
+      "kariz_product_id": 3,
+      "kohan_product_id": 34,
+      "source_identifier": "شمش نقره نوذر",
+      "source_name": "شمش نقره نوذر",
+      "source_catalogue_name": null,
+      "source_family": "bar",
+      "unit": "count",
+      "configured_tahesab_name": "شمش نقره نوذر",
+      "source_weight": 1000.0,
+      "purity": 999,
+      "mesghal_to_gram_factor": null,
+      "metal": "0",
+      "display_category": "silver_bar",
+      "verified": true,
+      "verification_evidence": "The exact configured Tahesab name is present as a source balance field; the live product catalogue returns '' as its label.",
+      "candidate_source_names": []
+    }
+  ]
+}

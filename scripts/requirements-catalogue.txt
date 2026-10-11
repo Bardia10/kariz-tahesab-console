@@ -1,0 +1,8 @@
+# Needed only for scripts/export_catalogue.py, which imports the isolated
+# authenticated Kariz product route without importing app.main or its workers.
+SQLAlchemy>=2,<3
+greenlet>=3,<4
+aiosqlite>=0.20,<1
+psycopg[binary]>=3,<4
+pydantic-settings>=2,<3
+PyJWT>=2,<3
