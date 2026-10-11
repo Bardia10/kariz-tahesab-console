@@ -2,10 +2,30 @@
 __pycache__/
 *.py[cod]
 .env
+.env.*
+!.env.example
 node_modules/
 dist/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
 .local/
+
+# Runtime state, logs, and local backups
+*.db
+*.db-wal
+*.db-shm
+*.log
+logs/
+backups/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
 
