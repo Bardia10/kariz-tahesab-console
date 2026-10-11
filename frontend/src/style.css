@@ -61,3 +61,44 @@
 @media(max-width:760px){.document-tools{padding:12px}.document-search{display:block}.document-search input{margin-top:6px}.document-types{gap:6px}.document-types button{font-size:11px;padding:8px 10px}.documents-page .heading{align-items:flex-start;gap:8px}}
 @media(max-width:760px){.documents-page table{min-width:0;table-layout:fixed}.documents-page .history th,.documents-page .history td{padding:10px 6px;font-size:10px;max-width:none;overflow-wrap:anywhere}.documents-page .history td b{font-size:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.documents-page .history td small{font-size:9px}.documents-page .history .badge{font-size:9px;padding:4px;line-height:1.7}.documents-page table th:nth-child(1){width:20%}.documents-page table th:nth-child(2){width:25%}.documents-page table th:nth-child(3){width:30%}.documents-page table th:nth-child(5){width:25%}.documents-page table th:nth-child(4),.documents-page table td:nth-child(4),.documents-page table th:nth-child(6),.documents-page table td:nth-child(6),.documents-page table th:nth-child(7),.documents-page table td:nth-child(7){display:none}.documents-page .history td.document-amount{white-space:normal}.documents-page .document-description{max-width:100%}}
 
+/* Readability baseline: retain the established layout while bringing legacy 8–11px text up to a comfortable size. */
+body{font-size:14px;line-height:1.65}
+.sidebrand b,.brandline b{font-size:15px}.sidebrand small,.brandline small{font-size:12px}
+.navlabel{font-size:12px}.sidebar nav button{font-size:14px}.sidebar nav button>span{font-size:18px}
+.testserver b{font-size:13px}.testserver small,.disconnect{font-size:12px}.sidetext{font-size:12px}
+.topbar{font-size:13px}.topactions button{font-size:13px}.readonly b{font-size:13px}.readonly span{font-size:12px}
+.heading small{font-size:13px}.heading h1{font-size:27px}.heading p{font-size:14px}
+.rangebox>div:first-child b{font-size:14px}.rangebox>div:first-child small{font-size:13px}.rangefields>span{font-size:13px}
+.field{font-size:13px}.field input,.field select,.connectcard input{font-size:15px;min-height:40px}
+.primary,.secondary{font-size:14px;padding:10px 15px}
+.cardhead b{font-size:15px}.cardhead small{font-size:13px}.tools input{font-size:14px;min-height:40px}
+th{font-size:13px;padding:12px 14px}td{font-size:14px;padding:12px 14px}td b{font-size:14px}td code{font-size:13px}.muted{font-size:13px}.linkbtn{font-size:13px}.cardfoot{font-size:12px}.empty{font-size:14px}
+.notice{font-size:13px}.filtergrid .field input,.filtergrid .field select{font-size:14px;min-height:40px}.filteractions{font-size:13px}
+.history td small{font-size:11px}.badge,.verified,.unverified{font-size:11px;padding:5px 8px}.inline{font-size:13px}.pages button{font-size:13px;padding:7px 10px}
+.balancehead small,.balancehead p,.balancehead h2 span,.balanceitem span{font-size:13px}.balanceitem{font-size:14px}.technical{font-size:13px}.technical pre{font-size:12px}
+.warning b{font-size:14px}.warning p{font-size:13px}.maprow{font-size:14px}.maprow>span{font-size:13px}.sourcecard>b{font-size:14px}.sourcecard>small{font-size:12px}.sourcecard ul,.sourcecard p{font-size:13px}.caprow{font-size:13px}.caprow button{font-size:12px}
+.modalhead small{font-size:13px}.modalhead h2{font-size:21px}.icon{width:36px;height:36px}.detailgrid small{font-size:12px}.detailgrid b{font-size:14px}
+.art small{font-size:13px}.art h2{font-size:31px}.art p{font-size:14px}.connectcopy>span{font-size:13px}.connectcopy h1{font-size:28px}.connectcopy p{font-size:14px}.connectcard .field input{font-size:15px}.fixedserver small,.fixedserver b{font-size:12px}.fixedserver code{font-size:13px}.secure{font-size:12px}
+.fetchstamp{font-size:12px}.notice.warningnotice{font-size:13px}
+.createbody{padding:18px}.creategrid{gap:15px}.creategrid .field input,.creategrid .field select{height:42px}.createactions{font-size:13px}.createchoices button{font-size:13px;padding:9px 13px}.inputreadout{font-size:14px}.operationrow b{font-size:14px}.operationrow small{font-size:12px}.operationrow p{font-size:13px}.opstatus{font-size:12px}.opmessage{font-size:12px}
+/* A dedicated creation dialog keeps long forms readable and scrollable on smaller screens. */
+.documents-page .history th{font-size:13px}.documents-page .history td,.documents-page .history td b{font-size:14px}.documents-page .history td small{font-size:12px}.documents-page .history .badge{font-size:12px}.documents-page .document-search,.documents-page .document-search input{font-size:15px}.documents-page .document-types button,.documents-page .document-filters summary,.documents-page .linkbtn,.documents-page .secondary,.documents-page .pages button{font-size:14px}.documents-page .cardhead small,.documents-page .cardfoot{font-size:13px}.documents-page .notice,.documents-page .empty{font-size:14px}
+.creation-modal{padding:20px;overflow-y:auto;overscroll-behavior:contain}
+.creation-modal .modal{width:min(760px,100%);max-height:calc(100vh - 40px);padding:0;overflow:auto}
+.creation-modal .createcard{margin:0;border:0;border-radius:14px;box-shadow:none;overflow:visible}
+.creation-modal .createbody{padding:20px}
+.creation-modal .createcard .cardhead b{display:none}.creation-modal .createcard .cardhead{padding:10px 20px;background:#f7faf8}.creation-modal .modalhead{padding:20px}.creation-modal .createcard .cardhead small{margin:0}
+.headingactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.headingactions button{font-size:14px;min-height:42px}
+@media(max-width:760px){
+ body{font-size:14px}.page{padding:18px 13px 35px}.heading h1{font-size:24px}.heading p{font-size:14px}
+ .mobilehead b{font-size:14px}.mobilehead em{font-size:11px}.readonly{font-size:13px}
+ .rangebox>div:first-child b{font-size:14px}.rangebox>div:first-child small{font-size:12px}.rangefields{gap:10px}.rangefields .field{width:auto}
+ .cardhead{gap:9px}.tools input{min-width:0}.filtergrid .field input,.filtergrid .field select{font-size:14px}
+ .history .cardhead .secondary{font-size:12px}.cardfoot{font-size:12px}.fetchstamp{font-size:11px}
+ .documents-page .history th,.documents-page .history td{font-size:12px;padding:10px 6px;line-height:1.65}.documents-page .history td b{font-size:12px}.documents-page .history td small{font-size:11px}.documents-page .history .badge{font-size:10px}
+ .createbody{padding:15px}.creategrid{grid-template-columns:1fr;gap:12px}.creategrid .span2{grid-column:auto}.createactions{font-size:13px}
+ .creation-modal{padding:10px}.creation-modal .modal{max-height:calc(100vh - 20px);border-radius:12px}.creation-modal .createbody{padding:15px}.headingactions{gap:7px}.headingactions button{font-size:13px;min-height:40px}
+}
+@media(max-width:400px){.headingactions{width:100%}.headingactions button{flex:1}.creation-modal .creategrid{grid-template-columns:minmax(0,1fr)}}
+

@@ -7,7 +7,8 @@ Standalone Persian RTL client for the Tahesab test accounting system. It has its
 - Connects only to `https://api-test.tahesab.ir`. The database is configured server-side and defaults to `TahesabDB`.
 - Lists customers in a bounded code range, supports search and 25-row pages, and shows source details.
 - Opens the documents page immediately after connecting and automatically shows documents across all customers, newest first. Search, document-type buttons, pagination, and a details button work without selecting a customer or entering code ranges. Optional filters are collapsed.
-- Uses the verified global `DoListAsnad` read: `[0, "", "", "", "", 0]`. On the test server this returned 4,054 rows; counts 25 and 50 returned recent subsets across multiple customers, and samples matched their customer histories. A separate selected-customer history remains available.
+- Payment, delivery, trade, and other-document pages use the same all-customer browser, automatically scoped to that document family. Search, optional filters, and pagination work consistently. Creation forms open from each page's add button in a modal; confirmed submissions refresh the listing. Customer-specific history is available through the optional customer-code filter.
+- Uses the verified global `DoListAsnad` read: `[0, "", "", "", "", 0]`. During contract verification this returned 4,054 rows; counts 25 and 50 returned recent subsets across multiple customers, and samples matched their customer histories.
 - Shows current Kariz product titles alongside the configured Tahesab source identifier and, separately, the Tahesab catalogue label. The current configured Emami coin and Nadir silver-bar identifiers are confirmed in source balance fields; miscellaneous gold has no configured Tahesab product identifier.
 - Reads customer balances, aggregate source metals, Tahesab’s combined `MandeMenhayeSeke` non-coin gold value, and available `Seke_*` product positions. Missing required money data is an error, not zero.
 - Creates customers, cash and bank documents, miscellaneous and آبشده 750-purity gold receipts/deliveries, and physical coin/bar receipts/deliveries. Each action requires confirmation, is journaled locally before submission, and is checked through source readback.
@@ -17,6 +18,17 @@ Standalone Persian RTL client for the Tahesab test accounting system. It has its
 Physical receipts and deliveries are verified for miscellaneous 750 gold and آبشده 750. Accounting trades are enabled for آبشده 750 at per-mesghal or per-gram rates. Miscellaneous-gold accounting trades stay disabled because Tahesab readback does not identify that mode. Coin and bar actions are enabled for the verified configured mappings. See [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the verification results and test data notes.
 
 ## Run locally on Windows
+
+The current UX improvements are on `codex/console-ux`. The previous working interface is saved on `master` at `2e7db48`. To restore that interface, stop the frontend terminal and run:
+
+```powershell
+cd C:\Users\asus\Projects\kariz\tahesab-test-console
+git switch master
+cd frontend
+npm run dev
+```
+
+Use `git switch codex/console-ux` from the project directory to return to the improved interface. Both branches use the same local database, dependencies, and ports.
 
 From this project directory, in one PowerShell window:
 
