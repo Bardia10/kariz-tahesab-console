@@ -28,6 +28,12 @@ async function main() {
     let forceFailure = false;
     let writeCount = 0;
     let customer = { Code: 1, Name: 'مشتری نمونه', Mobile: '09120000001', GroupName: 'test', Address: 'نشانی نمونه', CodeMeli: '0012345678' };
+    const remoteCustomers = Array.from({ length: 110 }, (_, index) => ({
+      Code: index === 0 ? 1 : index === 109 ? 1896 : 1000 + index,
+      Name: index === 0 ? customer.Name : index === 109 ? '\u0645\u0634\u062a\u0631\u06cc \u062e\u0627\u0631\u062c \u0627\u0632 \u0628\u0627\u0632\u0647' : `\u0645\u0634\u062a\u0631\u06cc \u0622\u0632\u0645\u0627\u06cc\u0634\u06cc ${index}`,
+      Mobile: index === 0 ? customer.Mobile : index === 109 ? '09120001896' : `0912000${String(index).padStart(4, '0')}`,
+      GroupName: 'test', Address: '', CodeMeli: '',
+    }));
     let connectBody;
     let customerEditBody;
     let releaseWrite;
@@ -43,6 +49,15 @@ async function main() {
         body = { connected: true };
       }
       if (url.pathname === '/api/customers') body = { items: [customer], from_code: 1, to_code: 250 };
+      if (url.pathname === '/api/customer-search') {
+        queries.push({ endpoint: 'customer-search', ...Object.fromEntries(url.searchParams) });
+        const q = (url.searchParams.get('q') || '').toLocaleLowerCase();
+        const matches = remoteCustomers.filter(item => [item.Name, item.Mobile, String(item.Code)].some(value => value.toLocaleLowerCase().includes(q)));
+        const pageNumber = Number(url.searchParams.get('page') || 1);
+        const pageSize = Number(url.searchParams.get('page_size') || 25);
+        body = { items: matches.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), total: matches.length,
+          page: pageNumber, page_size: pageSize, complete_snapshot: true, fetched_at: '2026-10-11T00:00:00Z' };
+      }
       if (url.pathname === '/api/customers/1') body = { item: customer };
       if (url.pathname === '/api/capabilities') body = { items: [] };
       if (url.pathname === '/api/catalogue') body = { mapping: { products: [], source_gold_modes: [] }, source_catalogues: { groups: [{ Name: 'test' }], bank_accounts: [] } };
@@ -153,6 +168,27 @@ async function main() {
         await page.getByRole('button', { name: add, exact: true }).click();
         await page.getByRole('dialog').waitFor();
         assert.equal(await page.locator('.creation-modal .createcard').count(), 1);
+        const selector = page.locator('.creation-modal .customer-selector');
+        const customerSearch = selector.locator('input[aria-label="جستجوی مشتری با نام، موبایل یا کد"]');
+        const customerSelect = selector.locator('select[aria-label="انتخاب مشتری"]');
+        await customerSearch.fill('1896');
+        await customerSelect.locator('option[value="1896"]').waitFor({ state: 'attached' });
+        assert.match(await customerSelect.locator('option[value="1896"]').innerText(), /مشتری خارج از بازه/);
+        assert.match(await customerSelect.locator('option[value="1896"]').innerText(), /09120001896/);
+        await customerSelect.selectOption('1896');
+        await customerSearch.fill('مشتری آزمایشی');
+        await customerSelect.locator('option[value="1896"]').waitFor({ state: 'attached' });
+        assert.equal(await customerSelect.inputValue(), '1896');
+        await customerSearch.fill('');
+        await selector.locator('.customer-selector-pages button').getByText('بعدی', { exact: true }).click();
+        await customerSelect.locator('option[value="1025"]').waitFor({ state: 'attached' });
+        assert.ok(queries.some(query => query.endpoint === 'customer-search' && query.page === '2'));
+        await customerSearch.fill('1');
+        await customerSelect.locator('option[value="1"]').waitFor({ state: 'attached' });
+        await customerSelect.selectOption('1');
+        assert.ok(queries.some(query => query.endpoint === 'customer-search' && query.q === '1896'));
+        assert.ok(queries.some(query => query.endpoint === 'customer-search' && query.q === '1'));
+        assert.ok(queries.filter(query => query.endpoint === 'customer-search').every(query => query.page_size === '25' && query.from_code === undefined && query.to_code === undefined));
         await page.keyboard.press('Escape');
         await page.getByRole('dialog').waitFor({ state: 'hidden' });
         assert.equal(await page.getByRole('button', { name: add, exact: true }).evaluate(el => el === document.activeElement), true);

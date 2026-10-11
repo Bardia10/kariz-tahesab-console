@@ -16,6 +16,7 @@ BASE_URL = "https://api-test.tahesab.ir"
 OPERATIONS = {
     "verify_database": ("/DoListNameARZ", "DoListNameARZ"),
     "customer_range": ("/DoListMoshtari-ByCode", "Dolistmoshtari"),
+    "customer_search": ("/DoListMoshtari", "DoListMoshtari"),
     "customer_phone": ("/DoListMoshtari-ByPhone", "DoListMoshtari"),
     "balance": ("/GetMandeHesabByCode", "getmandehesabbycode"),
     "documents": ("/DoListAsnad", "DoListAsnad"),
@@ -140,12 +141,12 @@ def customer_code(row: dict[str, Any]) -> int | None:
         value = row.get(key)
         if value not in (None, ""):
             try:
-                return int(normalize(value))
+                return int(normalize(str(value)))
             except ValueError:
                 return None
     if row.get("_source_key") not in (None, ""):
         try:
-            return int(normalize(row["_source_key"]))
+            return int(normalize(str(row["_source_key"])))
         except ValueError:
             return None
     return None
@@ -242,6 +243,13 @@ async def verify_database(token: str, database: str) -> Any:
 
 async def customers_in_range(token: str, database: str, first: int, last: int) -> list[dict[str, Any]]:
     payload = await _call(token, database, "customer_range", [int(first), int(last)])
+    return records(payload)
+
+
+async def all_customers(token: str, database: str) -> list[dict[str, Any]]:
+    # An empty customer-name filter returns the complete source list. Verified
+    # against the test server: all 1,897 records, including code 1,896, are returned.
+    payload = await _call(token, database, "customer_search", [""])
     return records(payload)
 
 

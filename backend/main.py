@@ -46,6 +46,7 @@ app = FastAPI(title="Tahesab Test Console API", docs_url=None, redoc_url=None)
 sessions: dict[str, tuple[str, float]] = {}
 cache: dict[tuple[str, str], tuple[float, Any, str]] = {}
 document_snapshot_locks: dict[str, asyncio.Lock] = {}
+customer_snapshot_locks: dict[str, asyncio.Lock] = {}
 login_failures: dict[str, tuple[int, float]] = {}
 
 
@@ -133,6 +134,7 @@ def now_label() -> str:
 def forget_session(sid: str) -> None:
     sessions.pop(sid, None)
     document_snapshot_locks.pop(sid, None)
+    customer_snapshot_locks.pop(sid, None)
     for key in [key for key in cache if key[0] == sid]:
         cache.pop(key, None)
 
@@ -217,6 +219,32 @@ async def fetch_customer_snapshot(sid: str, token: str, code: int) -> list[dict[
     rows = await read_source(adapter.documents_for_customer(token, DATABASE, code))
     write_cache(sid, key, rows)
     return rows
+
+
+async def fetch_all_customer_snapshot(sid: str, token: str) -> list[dict[str, Any]]:
+    key = "customers:all"
+    cached = read_cache(sid, key)
+    if cached is not None:
+        return cached
+    lock = customer_snapshot_locks.setdefault(sid, asyncio.Lock())
+    async with lock:
+        cached = read_cache(sid, key)
+        if cached is not None:
+            return cached
+        rows = await read_source(adapter.all_customers(token, DATABASE))
+        rows.sort(key=lambda row: (customer_code(row) is None, customer_code(row) or 0))
+        write_cache(sid, key, rows)
+        return rows
+
+
+def customer_search_match(row: dict[str, Any], query: str) -> bool:
+    if not query:
+        return True
+    fields = [row.get(name) for name in ("Name", "Moshtari_Name", "Mobile", "Tel", "Phone", "Tel1")]
+    code = customer_code(row)
+    if code is not None:
+        fields.append(code)
+    return any(query in normalize(str(value)) for value in fields if value not in (None, ""))
 
 
 def classify_document(row: dict[str, Any]) -> tuple[str, str]:
@@ -362,6 +390,23 @@ async def customers(request: Request, from_code: int = 1, to_code: int = 250):
     return {"items": rows, "from_code": from_code, "to_code": to_code,
             "complete_for_range": False,
             "coverage_note": "نمایش این بازه به معنی پوشش همه مشتریان یا تأیید سقف پاسخ منبع نیست.",
+            "fetched_at": cache_fetched_at(sid, key)}
+
+
+@app.get("/api/customer-search")
+async def customer_search(request: Request, q: str = "", page: int = 1, page_size: int = 25):
+    sid, token = require_session(request)
+    if page < 1 or page_size not in {25, 50, 100}:
+        raise HTTPException(422, "شماره صفحه یا اندازه صفحه معتبر نیست.")
+    if len(q) > 100:
+        raise HTTPException(422, "عبارت جست‌وجو بیش از اندازه طولانی است.")
+    key = "customers:all"
+    rows = await fetch_all_customer_snapshot(sid, token)
+    normalized_query = normalize(q)
+    matches = [row for row in rows if customer_search_match(row, normalized_query)]
+    start = (page - 1) * page_size
+    return {"items": matches[start:start + page_size], "total": len(matches),
+            "page": page, "page_size": page_size, "complete_snapshot": True,
             "fetched_at": cache_fetched_at(sid, key)}
 
 
@@ -802,7 +847,9 @@ async def create_operation(data: OperationIn, request: Request):
                       str(payload.get("national_id", "")), birthdate,
                       "", "", -1, 0]
             submitted = True
+            invalidate_customer_snapshots(sid, -1)
             result = await adapter.write_call(token, DATABASE, "customer", params)
+            invalidate_customer_snapshots(sid, -1)
             code_value = result.get("OK") if isinstance(result, dict) else None
             try:
                 new_code = int(normalize(code_value))
@@ -814,9 +861,7 @@ async def create_operation(data: OperationIn, request: Request):
             if customer and normalize(customer.get("Name")) == normalize(name) and normalize(customer.get("GoroupName") or customer.get("GroupName") or customer.get("Gorooh") or group) == normalize(group) and (not mobile_value or normalize(customer.get("Mobile") or "") == normalize(mobile_value)):
                 result = {"response": result, "customer": customer}
                 journal.update(data.operation_id, "verified", "مشتری با کد منبع بازخوانی و بررسی شد.", result)
-                for key in list(cache):
-                    if key[0] == sid and key[1].startswith("customers:"):
-                        cache.pop(key, None)
+                invalidate_customer_snapshots(sid, new_code)
             else:
                 journal.update(data.operation_id, "uncertain", "ثبت پاسخ داده شد، اما بازخوانی مشتری آن را تأیید نکرد.", result)
             return _operation_response(journal.get(data.operation_id))
@@ -865,7 +910,9 @@ async def create_operation(data: OperationIn, request: Request):
                             "preserved": {key: current[key] for key in ("BDate", "City", "Rasteh") if key in current}}}
             journal.update(data.operation_id, "submitting", "در حال ذخیره اطلاعات مشتری…", edit_context)
             submitted = True
+            invalidate_customer_snapshots(sid, code)
             result = await adapter.write_call(token, DATABASE, "customer_edit", params)
+            invalidate_customer_snapshots(sid, code)
             readback_rows = await adapter.customer_by_code(token, DATABASE, code)
             after = next((item for item in readback_rows if adapter.customer_code(item) == code), None)
             matches = bool(after and all(normalize(_source_customer_value(after, aliases[key])) == normalize(value)
@@ -1310,10 +1357,12 @@ async def verify_operation(operation_id: str, request: Request):
         phone = str(payload.get("mobile", "")).strip()
         if not phone:
             return _operation_response(journal.update(operation_id, "uncertain", "برای بررسی بی‌خطر مشتری، شماره تماس ثبت نشده؛ نتیجه نامشخص می‌ماند."))
+        invalidate_customer_snapshots(sid, -1)
         matches = await adapter.customer_by_phone(token, DATABASE, phone)
         exact = [r for r in matches if normalize(r.get("Name")) == normalize(payload.get("full_name"))]
         if len(exact) == 1:
             journal.update(operation_id, "verified", "یک مشتری با نام و شماره یکسان از منبع پیدا شد.", exact[0])
+            invalidate_customer_snapshots(sid, customer_code(exact[0]) or -1)
         return _operation_response(journal.get(operation_id))
     if row["kind"] == "customer_edit":
         saved = json.loads(row.get("source_response") or "{}")
